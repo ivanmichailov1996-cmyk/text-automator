@@ -1,102 +1,103 @@
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+const { Pool } = pg;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing SUPABASE_URL or SUPABASE_KEY environment variables');
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error('Missing DATABASE_URL environment variable');
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Create a connection pool using DATABASE_URL with pooler
+const pool = new Pool({
+  connectionString: databaseUrl,
+  // Pooler-specific settings
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+});
 
 export const getOrCreateUser = async (telegramId, username, firstName) => {
+  const client = await pool.connect();
   try {
     // Try to get existing user
-    const { data: existingUser, error: selectError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('telegram_id', telegramId)
-      .single();
+    const result = await client.query(
+      'SELECT * FROM users WHERE telegram_id = $1',
+      [telegramId]
+    );
 
-    if (existingUser) {
-      return existingUser;
+    if (result.rows.length > 0) {
+      return result.rows[0];
     }
 
     // Create new user if doesn't exist
-    const { data: newUser, error: insertError } = await supabase
-      .from('users')
-      .insert([
-        {
-          telegram_id: telegramId,
-          username: username,
-          first_name: firstName
-        }
-      ])
-      .select()
-      .single();
+    const insertResult = await client.query(
+      'INSERT INTO users (telegram_id, username, first_name) VALUES ($1, $2, $3) RETURNING *',
+      [telegramId, username, firstName]
+    );
 
-    if (insertError) throw insertError;
-    return newUser;
+    return insertResult.rows[0];
   } catch (error) {
     console.error('Database error:', error);
     throw error;
+  } finally {
+    client.release();
   }
 };
 
 export const saveToHistory = async (userId, type, inputText, outputText, language = 'ru') => {
+  const client = await pool.connect();
   try {
-    const { data, error } = await supabase
-      .from('history')
-      .insert([
-        {
-          user_id: userId,
-          type: type,
-          input_text: inputText,
-          output_text: outputText,
-          language: language
-        }
-      ])
-      .select()
-      .single();
+    const result = await client.query(
+      'INSERT INTO history (user_id, type, input_text, output_text, language) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [userId, type, inputText, outputText, language]
+    );
 
-    if (error) throw error;
-    return data;
+    return result.rows[0];
   } catch (error) {
     console.error('Database error:', error);
     throw error;
+  } finally {
+    client.release();
   }
 };
 
 export const getHistory = async (userId, limit = 50) => {
+  const client = await pool.connect();
   try {
-    const { data, error } = await supabase
-      .from('history')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const result = await client.query(
+      'SELECT * FROM history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+      [userId, limit]
+    );
 
-    if (error) throw error;
-    return data;
+    return result.rows;
   } catch (error) {
     console.error('Database error:', error);
     throw error;
+  } finally {
+    client.release();
   }
 };
 
 export const deleteHistoryItem = async (itemId) => {
+  const client = await pool.connect();
   try {
-    const { error } = await supabase
-      .from('history')
-      .delete()
-      .eq('id', itemId);
+    await client.query(
+      'DELETE FROM history WHERE id = $1',
+      [itemId]
+    );
 
-    if (error) throw error;
     return true;
   } catch (error) {
     console.error('Database error:', error);
     throw error;
+  } finally {
+    client.release();
   }
 };
 
-export default supabase;
+export default pool;
