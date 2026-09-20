@@ -105,14 +105,14 @@ export const generateText = async (prompt) => {
 
     const generator = await getTextPipeline();
 
-    // Generate text with MINIMAL parameters for Render free tier (512MB RAM limit)
-    // Using very small token count to avoid memory issues
+    // Ultra-lightweight parameters for Render free tier (512MB RAM)
+    // Focus on stability over quality
     const result = await generator(prompt, {
-      max_new_tokens: 50,  // Reduced from 150 to 50 tokens
-      temperature: 0.5,
-      top_p: 0.9,
-      do_sample: false,    // Disable sampling for faster generation
-      repetition_penalty: 1.1
+      max_new_tokens: 80,
+      temperature: 0.6,
+      top_p: 0.85,
+      do_sample: false,
+      repetition_penalty: 1.0
     });
 
     // Extract and clean the generated text
@@ -134,8 +134,8 @@ export const generateText = async (prompt) => {
     console.error('Text generation error:', error.message);
 
     // Provide helpful error message
-    if (error.message.includes('ONNX') || error.message.includes('Memory') || error.message.includes('out of memory')) {
-      throw new Error('Model loading failed - server memory exceeded on free tier. Trying again...');
+    if (error.message.includes('ONNX')) {
+      throw new Error('Model loading failed - this may take a few minutes on first run. Please try again.');
     }
 
     throw error;
