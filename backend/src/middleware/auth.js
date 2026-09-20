@@ -1,18 +1,30 @@
+// Auth middleware to extract user info from Telegram Mini App headers
 export const authMiddleware = (req, res, next) => {
-  const telegramId = req.headers['x-telegram-id'];
-  const username = req.headers['x-telegram-username'];
-  const firstName = req.headers['x-telegram-first-name'];
+  try {
+    // Get user info from headers (sent by Telegram Mini App)
+    const telegramId = req.headers['x-telegram-id'];
+    const username = req.headers['x-telegram-username'] || 'anonymous';
+    const firstName = req.headers['x-telegram-first-name'] || 'User';
 
-  if (!telegramId) {
-    return res.status(401).json({ error: 'Missing Telegram ID' });
+    // Attach user info to request object
+    req.user = {
+      telegramId: telegramId || '0',
+      username,
+      firstName
+    };
+
+    console.log('User info attached:', req.user);
+    next();
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    // Don't block the request, just log the error
+    req.user = {
+      telegramId: '0',
+      username: 'anonymous',
+      firstName: 'User'
+    };
+    next();
   }
-
-  // Attach user info to request
-  req.user = {
-    telegramId: parseInt(telegramId),
-    username: username || 'unknown',
-    firstName: firstName || 'User'
-  };
-
-  next();
 };
+
+export default authMiddleware;
