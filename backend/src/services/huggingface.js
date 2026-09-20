@@ -1,23 +1,23 @@
-// AI Text Generation using Hugging Face models
-// Note: This uses Transformers.js for local inference
+// AI Text Generation using Hugging Face Inference API
+import axios from 'axios';
+
+const HF_API_TOKEN = process.env.HF_API_TOKEN;
+const HF_API_URL = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2';
 
 export const generateTask = async (description) => {
   try {
-    const prompt = `
-Task: Based on the following description, generate a clear, structured work task for an employee.
+    const prompt = `You are a task management assistant. Based on the following description, generate a clear, structured work task for an employee.
 
 Description: ${description}
 
-Format the response as:
+Provide response in this format:
 **Task Title:** [Clear, concise title]
 **Objective:** [Main goal]
 **Requirements:** [List of key requirements]
 **Deadline:** [Suggested timeline]
-**Success Criteria:** [How to measure success]
-    `;
+**Success Criteria:** [How to measure success]`;
 
-    // Simulated response (in production, use actual LLM)
-    return generateText(prompt);
+    return await generateText(prompt);
   } catch (error) {
     console.error('Task generation error:', error);
     throw error;
@@ -32,17 +32,15 @@ export const generateLetter = async (topic, points, tone = 'formal') => {
       firm: 'Use direct, assertive language'
     };
 
-    const prompt = `
-Write a professional letter on the following:
+    const prompt = `Write a professional letter on the following:
 
 Topic: ${topic}
 Key Points to Cover: ${points}
 Tone: ${toneInstructions[tone] || 'professional'}
 
-Format as a complete business letter with proper structure.
-    `;
+Format as a complete business letter with proper structure.`;
 
-    return generateText(prompt);
+    return await generateText(prompt);
   } catch (error) {
     console.error('Letter generation error:', error);
     throw error;
@@ -57,16 +55,14 @@ export const rewriteText = async (text, level = 'medium') => {
       heavy: 'Completely rephrase with different sentence structure and vocabulary'
     };
 
-    const prompt = `
-Rewrite the following text. ${levelInstructions[level] || 'Improve clarity'}
+    const prompt = `Rewrite the following text. ${levelInstructions[level] || 'Improve clarity'}
 
 Original text:
 ${text}
 
-Rewritten text:
-    `;
+Rewritten text:`;
 
-    return generateText(prompt);
+    return await generateText(prompt);
   } catch (error) {
     console.error('Text rewrite error:', error);
     throw error;
@@ -81,16 +77,14 @@ export const generatePost = async (topic, platform = 'telegram') => {
       linkedin: 'Professional, insightful, B2B focused'
     };
 
-    const prompt = `
-Create a social media post for ${platform}.
+    const prompt = `Create a social media post for ${platform}.
 
 Topic: ${topic}
 Guidelines: ${platformInstructions[platform] || 'engaging and relevant'}
 
-Post:
-    `;
+Post:`;
 
-    return generateText(prompt);
+    return await generateText(prompt);
   } catch (error) {
     console.error('Post generation error:', error);
     throw error;
@@ -99,19 +93,46 @@ Post:
 
 export const generateText = async (prompt) => {
   try {
-    // Simulated AI response
-    // In production, integrate with actual LLM API or local model
+    if (!HF_API_TOKEN) {
+      throw new Error('HF_API_TOKEN environment variable is not set');
+    }
 
-    // For now, return a reasonable placeholder
-    const responses = [
-      "✨ Generated content based on your request. In production, this would be powered by Hugging Face Transformers.js or an LLM API.",
-      "🤖 AI-generated response ready. Connect to a real LLM model for production use.",
-      "📝 Content generated successfully. Configure your LLM endpoint in production."
-    ];
+    const response = await axios.post(
+      HF_API_URL,
+      {
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: 500,
+          temperature: 0.7,
+          top_p: 0.95,
+          do_sample: true
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${HF_API_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000
+      }
+    );
 
-    return responses[Math.floor(Math.random() * responses.length)];
+    // Extract generated text from response
+    if (Array.isArray(response.data)) {
+      const generatedText = response.data[0]?.generated_text || '';
+      // Remove the prompt from the generated text (Mistral includes it)
+      return generatedText.replace(prompt, '').trim() || 'Unable to generate content';
+    }
+
+    return response.data?.generated_text || 'Unable to generate content';
   } catch (error) {
-    console.error('Text generation error:', error);
+    console.error('Hugging Face API error:', error.message);
+
+    // Fallback response if API fails
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      throw new Error('Request timeout - model might be loading. Please try again in a moment.');
+    }
+
     throw error;
   }
 };
