@@ -1,0 +1,22 @@
+{
+  "name": "text-automator-backend",
+  "version": "1.0.0",
+  "description": "Text Automator API Server",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": ["telegram", "miniapp", "ai", "text-generation"],
+  "author": "Claude AI",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "@supabase/supabase-js": "^2.26.0",
+    "@xenova/transformers": "^2.6.0",
+    "axios": "^1.4.0"
+  }
+}
