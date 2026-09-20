@@ -105,12 +105,12 @@ export const generateText = async (prompt) => {
 
     const generator = await getTextPipeline();
 
-    // Ultra-lightweight parameters for Render free tier (512MB RAM)
-    // Focus on stability over quality
+    // Minimal parameters for Render free tier (512MB RAM limit)
+    // Generate FAST to avoid memory buildup
     const result = await generator(prompt, {
-      max_new_tokens: 80,
-      temperature: 0.6,
-      top_p: 0.85,
+      max_new_tokens: 40,
+      temperature: 0.5,
+      top_p: 0.8,
       do_sample: false,
       repetition_penalty: 1.0
     });
