@@ -1,8 +1,16 @@
-// AI Text Generation using Hugging Face Inference API
-import axios from 'axios';
+// AI Text Generation using Transformers.js for local inference
+import { pipeline } from '@xenova/transformers';
 
-const HF_API_TOKEN = process.env.HF_API_TOKEN;
-const HF_API_URL = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2';
+// Initialize the text generation pipeline (will download model on first use)
+let textGenerationPipeline = null;
+
+async function getTextPipeline() {
+  if (!textGenerationPipeline) {
+    console.log('Initializing text generation pipeline...');
+    textGenerationPipeline = await pipeline('text-generation', 'Xenova/distilgpt2');
+  }
+  return textGenerationPipeline;
+}
 
 export const generateTask = async (description) => {
   try {
@@ -93,44 +101,40 @@ Post:`;
 
 export const generateText = async (prompt) => {
   try {
-    if (!HF_API_TOKEN) {
-      throw new Error('HF_API_TOKEN environment variable is not set');
-    }
+    console.log('Generating text with Transformers.js...');
 
-    const response = await axios.post(
-      HF_API_URL,
-      {
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 500,
-          temperature: 0.7,
-          top_p: 0.95,
-          do_sample: true
-        }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${HF_API_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000
+    const generator = await getTextPipeline();
+
+    // Generate text with optimized parameters for reasonable length responses
+    const result = await generator(prompt, {
+      max_new_tokens: 150,
+      temperature: 0.7,
+      top_p: 0.95,
+      do_sample: true,
+      repetition_penalty: 1.2
+    });
+
+    // Extract and clean the generated text
+    if (result && result[0] && result[0].generated_text) {
+      let generatedText = result[0].generated_text;
+
+      // Remove the original prompt from the output
+      if (generatedText.startsWith(prompt)) {
+        generatedText = generatedText.substring(prompt.length);
       }
-    );
 
-    // Extract generated text from response
-    if (Array.isArray(response.data)) {
-      const generatedText = response.data[0]?.generated_text || '';
-      // Remove the prompt from the generated text (Mistral includes it)
-      return generatedText.replace(prompt, '').trim() || 'Unable to generate content';
+      // Clean up and return
+      const cleanedText = generatedText.trim();
+      return cleanedText || 'Unable to generate content';
     }
 
-    return response.data?.generated_text || 'Unable to generate content';
+    return 'Unable to generate content';
   } catch (error) {
-    console.error('Hugging Face API error:', error.message);
+    console.error('Text generation error:', error.message);
 
-    // Fallback response if API fails
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      throw new Error('Request timeout - model might be loading. Please try again in a moment.');
+    // Provide helpful error message
+    if (error.message.includes('ONNX')) {
+      throw new Error('Model loading failed - this may take a few minutes on first run. Please try again.');
     }
 
     throw error;
