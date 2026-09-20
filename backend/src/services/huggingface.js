@@ -2,7 +2,8 @@
 import axios from 'axios';
 
 const HF_API_TOKEN = process.env.HF_API_TOKEN;
-const HF_API_URL = 'https://api-inference.huggingface.co/models/gpt2/api/text-generation';
+// Use CORS proxy to bypass Render DNS restrictions
+const HF_API_URL = 'https://cors-anywhere.herokuapp.com/https://api-inference.huggingface.co/models/gpt2/api/text-generation';
 
 // Create axios instance with timeout
 const hfClient = axios.create({
