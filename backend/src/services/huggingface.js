@@ -1,16 +1,17 @@
-// AI Text Generation using Transformers.js for local inference
-import { pipeline } from '@xenova/transformers';
+// AI Text Generation using Hugging Face Inference API
+import axios from 'axios';
 
-// Initialize the text generation pipeline (will download model on first use)
-let textGenerationPipeline = null;
+const HF_API_TOKEN = process.env.HF_API_TOKEN;
+const HF_API_URL = 'https://api-inference.huggingface.co/models/gpt2/api/text-generation';
 
-async function getTextPipeline() {
-  if (!textGenerationPipeline) {
-    console.log('Initializing text generation pipeline...');
-    textGenerationPipeline = await pipeline('text-generation', 'Xenova/distilgpt2');
+// Create axios instance with timeout
+const hfClient = axios.create({
+  timeout: 30000,
+  headers: {
+    'Authorization': `Bearer ${HF_API_TOKEN}`,
+    'Content-Type': 'application/json'
   }
-  return textGenerationPipeline;
-}
+});
 
 export const generateTask = async (description) => {
   try {
@@ -101,23 +102,23 @@ Post:`;
 
 export const generateText = async (prompt) => {
   try {
-    console.log('Generating text with Transformers.js...');
+    console.log('Generating text with Hugging Face API...');
 
-    const generator = await getTextPipeline();
-
-    // Minimal parameters for Render free tier (512MB RAM limit)
-    // Generate FAST to avoid memory buildup
-    const result = await generator(prompt, {
-      max_new_tokens: 40,
-      temperature: 0.5,
-      top_p: 0.8,
-      do_sample: false,
-      repetition_penalty: 1.0
+    // Call Hugging Face Inference API
+    const response = await hfClient.post(HF_API_URL, {
+      inputs: prompt,
+      parameters: {
+        max_length: 150,
+        temperature: 0.7,
+        top_p: 0.95,
+        do_sample: true,
+        repetition_penalty: 1.2
+      }
     });
 
     // Extract and clean the generated text
-    if (result && result[0] && result[0].generated_text) {
-      let generatedText = result[0].generated_text;
+    if (response.data && response.data[0] && response.data[0].generated_text) {
+      let generatedText = response.data[0].generated_text;
 
       // Remove the original prompt from the output
       if (generatedText.startsWith(prompt)) {
@@ -134,8 +135,12 @@ export const generateText = async (prompt) => {
     console.error('Text generation error:', error.message);
 
     // Provide helpful error message
-    if (error.message.includes('ONNX')) {
-      throw new Error('Model loading failed - this may take a few minutes on first run. Please try again.');
+    if (error.message.includes('DNS') || error.message.includes('ENOTFOUND')) {
+      throw new Error('API connection failed - DNS issue. Please try again in a moment.');
+    }
+
+    if (error.response?.status === 503) {
+      throw new Error('Hugging Face API is busy. Please try again in a moment.');
     }
 
     throw error;
