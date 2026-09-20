@@ -15,7 +15,7 @@ export const initTelegram = () => {
   return telegramUser;
 };
 
-const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 const apiClient = axios.create({
   baseURL: API_URL,
