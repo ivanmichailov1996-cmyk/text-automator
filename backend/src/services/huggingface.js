@@ -2,17 +2,7 @@
 import axios from 'axios';
 
 const HF_API_TOKEN = process.env.HF_API_TOKEN;
-// Use CORS proxy to bypass Render DNS restrictions
-const HF_API_URL = 'https://cors-anywhere.herokuapp.com/https://api-inference.huggingface.co/models/gpt2/api/text-generation';
-
-// Create axios instance with timeout
-const hfClient = axios.create({
-  timeout: 30000,
-  headers: {
-    'Authorization': `Bearer ${HF_API_TOKEN}`,
-    'Content-Type': 'application/json'
-  }
-});
+const HF_API_URL = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2';
 
 export const generateTask = async (description) => {
   try {
@@ -103,45 +93,44 @@ Post:`;
 
 export const generateText = async (prompt) => {
   try {
-    console.log('Generating text with Hugging Face API...');
-
-    // Call Hugging Face Inference API
-    const response = await hfClient.post(HF_API_URL, {
-      inputs: prompt,
-      parameters: {
-        max_length: 150,
-        temperature: 0.7,
-        top_p: 0.95,
-        do_sample: true,
-        repetition_penalty: 1.2
-      }
-    });
-
-    // Extract and clean the generated text
-    if (response.data && response.data[0] && response.data[0].generated_text) {
-      let generatedText = response.data[0].generated_text;
-
-      // Remove the original prompt from the output
-      if (generatedText.startsWith(prompt)) {
-        generatedText = generatedText.substring(prompt.length);
-      }
-
-      // Clean up and return
-      const cleanedText = generatedText.trim();
-      return cleanedText || 'Unable to generate content';
+    if (!HF_API_TOKEN) {
+      throw new Error('HF_API_TOKEN environment variable is not set');
     }
 
-    return 'Unable to generate content';
+    const response = await axios.post(
+      HF_API_URL,
+      {
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: 500,
+          temperature: 0.7,
+          top_p: 0.95,
+          do_sample: true
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${HF_API_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000
+      }
+    );
+
+    // Extract generated text from response
+    if (Array.isArray(response.data)) {
+      const generatedText = response.data[0]?.generated_text || '';
+      // Remove the prompt from the generated text (Mistral includes it)
+      return generatedText.replace(prompt, '').trim() || 'Unable to generate content';
+    }
+
+    return response.data?.generated_text || 'Unable to generate content';
   } catch (error) {
-    console.error('Text generation error:', error.message);
+    console.error('Hugging Face API error:', error.message);
 
-    // Provide helpful error message
-    if (error.message.includes('DNS') || error.message.includes('ENOTFOUND')) {
-      throw new Error('API connection failed - DNS issue. Please try again in a moment.');
-    }
-
-    if (error.response?.status === 503) {
-      throw new Error('Hugging Face API is busy. Please try again in a moment.');
+    // Fallback response if API fails
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      throw new Error('Request timeout - model might be loading. Please try again in a moment.');
     }
 
     throw error;
